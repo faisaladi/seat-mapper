@@ -1,5 +1,14 @@
 import React, { useState, useEffect } from 'react';
 
+// Define the Seat interface
+interface Seat {
+  id: string;
+  row: number;
+  column: number;
+  label: string;
+  status: 'VOID' | 'AVAILABLE' | 'UNAVAILABLE';
+}
+
 const SeatMappingTool = () => {
   const [rows, setRows] = useState(5);
   const [columns, setColumns] = useState(5);
@@ -8,7 +17,7 @@ const SeatMappingTool = () => {
   const [seats, setSeats] = useState<Seat[]>([]);
   
   const [editMode, setEditMode] = useState('status'); // 'status' or 'label'
-  const [editingSeatId, setEditingSeatId] = useState(null);
+  const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
   const [editingLabel, setEditingLabel] = useState('');
 
   // Initialize the seat grid when rows or columns change
@@ -34,21 +43,22 @@ const SeatMappingTool = () => {
     
 
   // Handle seat click based on edit mode
-  const handleSeatClick = (seat) => {
+  const handleSeatClick = (seat: Seat) => {
     if (editMode === 'status') {
       // Cycle through statuses: VOID -> AVAILABLE -> UNAVAILABLE -> VOID
-      const nextStatus = {
+      const nextStatus: Record<'VOID' | 'AVAILABLE' | 'UNAVAILABLE', 'VOID' | 'AVAILABLE' | 'UNAVAILABLE'> = {
         'VOID': 'AVAILABLE',
         'AVAILABLE': 'UNAVAILABLE',
-        'UNAVAILABLE': 'VOID'
+        'UNAVAILABLE': 'VOID',
       };
       
-      const updatedSeats = seats.map(s => {
+      const updatedSeats: Seat[] = seats.map(s => {
         if (s.id === seat.id) {
-          return { ...s, status: nextStatus[s.status] };
+          return { ...s, status: nextStatus[s.status] }; // ✅ TypeScript now understands the type correctly
         }
         return s;
       });
+      
       setSeats(updatedSeats);
     } else if (editMode === 'label') {
       // Start editing label
@@ -58,8 +68,8 @@ const SeatMappingTool = () => {
   };
 
   // Save label after editing
-  const handleLabelSave = (e) => {
-    if (e.key === 'Enter' || e.type === 'blur') {
+  const handleLabelSave = (e: React.KeyboardEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>) => {
+    if ((e as React.KeyboardEvent).key === 'Enter' || e.type === 'blur') {
       const updatedSeats = seats.map(seat => {
         if (seat.id === editingSeatId) {
           return { ...seat, label: editingLabel.substring(0, 4) }; // Limit to 4 characters
@@ -95,7 +105,7 @@ const SeatMappingTool = () => {
   };
 
   // Get color based on status
-  const getColorForStatus = (status) => {
+  const getColorForStatus = (status: 'VOID' | 'AVAILABLE' | 'UNAVAILABLE') => {
     switch (status) {
       case 'AVAILABLE': return 'bg-green-200';
       case 'UNAVAILABLE': return 'bg-red-200';
