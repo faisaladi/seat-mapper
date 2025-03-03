@@ -1,45 +1,43 @@
-// src/components/SeatMappingTool.tsx
 import React, { useState, useEffect } from 'react';
 
-// Define the Seat interface
-interface Seat {
-  id: string;
-  row: number;
-  column: number;
-  label: string;
-  status: string;
-}
-
-const SeatMappingTool: React.FC = () => {  // Add the React.FC type
+const SeatMappingTool = () => {
   const [rows, setRows] = useState(5);
   const [columns, setColumns] = useState(5);
+  const [tempRows, setTempRows] = useState(5);  // Temporary input
+  const [tempColumns, setTempColumns] = useState(5);  // Temporary input
   const [seats, setSeats] = useState<Seat[]>([]);
-  const [editMode, setEditMode] = useState('status');
-  const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
+  
+  const [editMode, setEditMode] = useState('status'); // 'status' or 'label'
+  const [editingSeatId, setEditingSeatId] = useState(null);
   const [editingLabel, setEditingLabel] = useState('');
 
   // Initialize the seat grid when rows or columns change
   useEffect(() => {
-    const initialSeats: Seat[] = [];
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < columns; col++) {
-        initialSeats.push({
-          id: `${row}-${col}`,
-          row,
-          column: col,
-          label: '',
-          status: 'VOID'
-        });
+    setSeats((prevSeats) => {
+      const newSeats: Seat[] = [];
+  
+      for (let row = 0; row < rows; row++) {
+        for (let col = 0; col < columns; col++) {
+          const existingSeat = prevSeats.find(seat => seat.row === row && seat.column === col);
+  
+          newSeats.push(
+            existingSeat
+              ? existingSeat // Keep existing seat data
+              : { id: `${row}-${col}`, row, column: col, label: '', status: 'VOID' } // Add new seats
+          );
+        }
       }
-    }
-    setSeats(initialSeats);
+  
+      return newSeats;
+    });
   }, [rows, columns]);
+    
 
   // Handle seat click based on edit mode
-  const handleSeatClick = (seat: Seat) => {
+  const handleSeatClick = (seat) => {
     if (editMode === 'status') {
       // Cycle through statuses: VOID -> AVAILABLE -> UNAVAILABLE -> VOID
-      const nextStatus: {[key: string]: string} = {
+      const nextStatus = {
         'VOID': 'AVAILABLE',
         'AVAILABLE': 'UNAVAILABLE',
         'UNAVAILABLE': 'VOID'
@@ -60,8 +58,8 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
   };
 
   // Save label after editing
-  const handleLabelSave = (e: React.KeyboardEvent | React.FocusEvent) => {
-    if ((e as React.KeyboardEvent).key === 'Enter' || e.type === 'blur') {
+  const handleLabelSave = (e) => {
+    if (e.key === 'Enter' || e.type === 'blur') {
       const updatedSeats = seats.map(seat => {
         if (seat.id === editingSeatId) {
           return { ...seat, label: editingLabel.substring(0, 4) }; // Limit to 4 characters
@@ -97,7 +95,7 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
   };
 
   // Get color based on status
-  const getColorForStatus = (status: string) => {
+  const getColorForStatus = (status) => {
     switch (status) {
       case 'AVAILABLE': return 'bg-green-200';
       case 'UNAVAILABLE': return 'bg-red-200';
@@ -108,19 +106,21 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
 
   // Make sure you have this return statement:
   return (
-    <div className="p-4 max-w-4xl mx-auto">
-      <h1 className="text-2xl font-bold mb-4">Event Seat Mapping Tool</h1>
+    <div className="flex flex-col items-center h-screen w-screen p-4 pr-4 overflow-hidden">
       
+      {/* Title */}
+      <h1 className="text-2xl font-bold mb-4">Event Seat Mapping Tool</h1>
+  
       {/* Input controls */}
-      <div className="mb-6 flex flex-wrap gap-4 items-end">
+      <div className="mb-4 flex flex-wrap gap-4 items-end w-full justify-center">
         <div>
           <label className="block mb-1">Rows:</label>
           <input 
             type="number" 
             min="1"
-            max="20"
-            value={rows} 
-            onChange={(e) => setRows(parseInt(e.target.value) || 1)} 
+            max="50"
+            value={tempRows} 
+            onChange={(e) => setTempRows(parseInt(e.target.value) || 1)} 
             className="border rounded p-2 w-24"
           />
         </div>
@@ -129,13 +129,24 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
           <input 
             type="number" 
             min="1"
-            max="20"
-            value={columns} 
-            onChange={(e) => setColumns(parseInt(e.target.value) || 1)} 
+            max="50"
+            value={tempColumns} 
+            onChange={(e) => setTempColumns(parseInt(e.target.value) || 1)} 
             className="border rounded p-2 w-24"
           />
         </div>
-        
+
+        {/* Apply Button */}
+        <button 
+          onClick={() => {
+            setRows(tempRows);
+            setColumns(tempColumns);
+          }}
+          className="bg-blue-500 text-white px-4 py-2 rounded"
+        >
+          Apply
+        </button>
+  
         {/* Edit mode toggle */}
         <div className="flex border rounded overflow-hidden">
           <button 
@@ -151,52 +162,54 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
             Label Editor
           </button>
         </div>
-        
+  
         <button 
           onClick={generateCSV}
-          className="bg-green-500 text-white px-4 py-2 rounded ml-auto"
+          className="bg-green-500 text-white px-4 py-2 rounded ml-auto mr-8"
         >
           Generate CSV
         </button>
       </div>
-      
-      {/* Mode instructions */}
-      <div className="mb-4 p-2 bg-gray-100 rounded">
+  
+      <div className="mb-4 p-2 bg-gray-100 rounded text-center w-full max-w-3xl">
         <p className="text-sm">
           {editMode === 'status' 
             ? 'Click on seats to cycle through status: VOID → AVAILABLE → UNAVAILABLE → VOID' 
             : 'Click on seats to edit their labels (max 4 characters). Press Enter to save.'}
         </p>
       </div>
-      
-      {/* Seat grid */}
-      <div className="overflow-auto">
-        <div className="relative">
+  
+      {/* Scrollable Grid Container */}
+      <div 
+        className="flex-grow w-full max-w-screen-2xl overflow-auto border bg-white mb-0"
+        style={{ height: 'calc(100vh - 180px)' }} // Adjusts grid height dynamically
+      >
+        <div className="relative mx-auto w-max"> {/* Centers the grid */}
           {/* Column headers */}
           <div className="flex ml-8">
             {Array.from({ length: columns }).map((_, colIndex) => (
-              <div key={`col-${colIndex}`} className="w-12 h-8 flex items-center justify-center text-sm font-medium">
+              <div key={`col-${colIndex}`} className="w-[50px] h-[30px] flex items-center justify-center text-sm font-medium">
                 {colIndex}
               </div>
             ))}
           </div>
-          
+  
           {/* Rows with row headers */}
           {Array.from({ length: rows }).map((_, rowIndex) => (
             <div key={`row-${rowIndex}`} className="flex">
               {/* Row header */}
-              <div className="w-8 h-12 flex items-center justify-center text-sm font-medium">
+              <div className="w-[30px] h-[50px] flex items-center justify-center text-sm font-medium">
                 {rowIndex}
               </div>
-              
-              {/* Seats in this row */}
+  
+              {/* Seats */}
               {seats
                 .filter(seat => seat.row === rowIndex)
                 .map((seat) => (
                   <div
                     key={seat.id}
                     onClick={() => handleSeatClick(seat)}
-                    className={`w-12 h-12 m-0.5 flex items-center justify-center cursor-pointer border rounded text-xs ${getColorForStatus(seat.status)}`}
+                    className={`w-[50px] h-[50px] flex items-center justify-center cursor-pointer border rounded text-xs ${getColorForStatus(seat.status)}`}
                   >
                     {editingSeatId === seat.id ? (
                       <input
@@ -219,24 +232,30 @@ const SeatMappingTool: React.FC = () => {  // Add the React.FC type
           ))}
         </div>
       </div>
-      
-      {/* Status legend */}
-      <div className="mt-4 flex gap-4">
+      {/* Summary Section */}
+      <div className="mt-0 mb-10 text-center text-lg font-semibold">
+        <p>Total Grid : {seats.length}</p>
+      </div>
+
+      {/* Status Legend (Sticky at Bottom) */}
+      <div className="mt-4 flex gap-4 bg-white py-2 px-4 shadow-md fixed bottom-0 w-full justify-center">
         <div className="flex items-center">
           <div className="w-4 h-4 bg-green-200 mr-2"></div>
-          <span className="text-xs">AVAILABLE</span>
+          <span className="text-xs">AVAILABLE : {seats.filter(seat => seat.status === 'AVAILABLE').length}</span>
         </div>
         <div className="flex items-center">
           <div className="w-4 h-4 bg-red-200 mr-2"></div>
-          <span className="text-xs">UNAVAILABLE</span>
+          <span className="text-xs">UNAVAILABLE : {seats.filter(seat => seat.status === 'UNAVAILABLE').length}</span>
         </div>
         <div className="flex items-center">
           <div className="w-4 h-4 bg-gray-200 mr-2"></div>
-          <span className="text-xs">VOID</span>
+          <span className="text-xs">VOID : {seats.filter(seat => seat.status === 'VOID').length}</span>
         </div>
       </div>
+  
     </div>
   );
+  
 };
 
 export default SeatMappingTool;
