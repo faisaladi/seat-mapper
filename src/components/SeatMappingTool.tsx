@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import Papa from 'papaparse';
 
 // Define the Seat interface
 interface Seat {
@@ -114,13 +115,65 @@ const SeatMappingTool = () => {
     }
   };
 
+   // Function to handle file upload
+   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+
+    Papa.parse(file, {
+      complete: (result: Papa.ParseResult<string[]>) => {
+        const data: string[][] = result.data;
+        processCSVData(data);
+      },
+      skipEmptyLines: true,
+    });
+  };
+
+  // Process CSV Data and update seats
+  const processCSVData = (data: string[][]) => {
+    let startRow = Infinity, endRow = -1;
+    let startCol = Infinity, endCol = -1;
+
+    // Detect grid bounds
+    data.forEach((row, rowIndex) => {
+      row.forEach((cell, colIndex) => {
+        if (cell.trim() !== '') {
+          if (rowIndex < startRow) startRow = rowIndex;
+          if (rowIndex > endRow) endRow = rowIndex;
+          if (colIndex < startCol) startCol = colIndex;
+          if (colIndex > endCol) endCol = colIndex;
+        }
+      });
+    });
+
+    if (startRow === Infinity || startCol === Infinity) return;
+
+    const seatList: Seat[] = [];
+    for (let row = startRow; row <= endRow; row++) {
+      for (let col = startCol; col <= endCol; col++) {
+        const label = data[row]?.[col]?.trim() || '';
+        seatList.push({
+          id: `${row - startRow}-${col - startCol}`,
+          row: row - startRow,
+          column: col - startCol,
+          label,
+          status: label ? 'AVAILABLE' : 'VOID',
+        });
+      }
+    }
+
+    setRows(endRow - startRow + 1);
+    setColumns(endCol - startCol + 1);
+    setSeats(seatList);
+  };
+ 
   // Make sure you have this return statement:
   return (
     <div className="flex flex-col items-center h-screen w-screen p-4 pr-4 overflow-hidden">
       
       {/* Title */}
       <h1 className="text-2xl font-bold mb-4">Event Seat Mapping Tool</h1>
-  
+
       {/* Input controls */}
       <div className="mb-4 flex flex-wrap gap-4 items-end w-full justify-center">
         <div>
@@ -152,8 +205,7 @@ const SeatMappingTool = () => {
             setRows(tempRows);
             setColumns(tempColumns);
           }}
-          className="bg-blue-500 text-white px-4 py-2 rounded"
-        >
+          className="bg-blue-500 text-white px-4 py-2 rounded" >
           Apply
         </button>
   
@@ -171,16 +223,26 @@ const SeatMappingTool = () => {
           >
             Label Editor
           </button>
+          {/* <button 
+            onClick={() => setEditMode('category')}
+            className={`px-4 py-2 ${editMode === 'category' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+          >
+            Category Editor
+          </button> */}
         </div>
-  
+      
+        <label className="cursor-pointer bg-blue-600 text-white py-2 px-6 rounded-lg shadow hover:bg-blue-700 ">
+        Upload Seatmap CSV
+        <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
+        </label>
+
         <button 
           onClick={generateCSV}
-          className="bg-green-500 text-white px-4 py-2 rounded ml-auto mr-8"
-        >
+          className="cursor-pointer bg-green-500 text-white py-2 px-6 rounded-lg ml-auto mr-8 shadow hover:bg-green-700">
           Generate CSV
         </button>
-      </div>
-  
+      </div>    
+
       <div className="mb-4 p-2 bg-gray-100 rounded text-center w-full max-w-3xl">
         <p className="text-sm">
           {editMode === 'status' 
@@ -194,7 +256,13 @@ const SeatMappingTool = () => {
         className="flex-grow w-full max-w-screen-2xl overflow-auto border bg-white mb-0"
         style={{ height: 'calc(100vh - 180px)' }} // Adjusts grid height dynamically
       >
-        <div className="relative mx-auto w-max"> {/* Centers the grid */}
+
+      <div className="bg-gray-100 place-self-auto text-center w-full max-w-screen-2xl pr-2 fixed z-10 border">
+        <p className="text-2xl font-bold"> STAGE
+        </p>
+      </div>
+
+        <div className="relative mx-auto w-max mt-14 z-0"> {/* Centers the grid */}
           {/* Column headers */}
           <div className="flex ml-8">
             {Array.from({ length: columns }).map((_, colIndex) => (
@@ -262,7 +330,7 @@ const SeatMappingTool = () => {
           <span className="text-xs">VOID : {seats.filter(seat => seat.status === 'VOID').length}</span>
         </div>
       </div>
-  
+
     </div>
   );
   
