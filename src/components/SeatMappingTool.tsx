@@ -17,73 +17,137 @@ const SeatMappingTool = () => {
   const [tempColumns, setTempColumns] = useState(5);  // Temporary input
   const [seats, setSeats] = useState<Seat[]>([]);
   
-  const [editMode, setEditMode] = useState('status'); // 'status' or 'label'
-  const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
-  const [editingLabel, setEditingLabel] = useState('');
+  const [isDragging, setIsDragging] = useState(false);
+  const [targetStatus, setTargetStatus] = useState<Seat["status"] | null>(null);
+  const [changedSeats, setChangedSeats] = useState(new Set<string>()); // Track updated seats
+  const ENABLE_LABEL_EDITING = false; // Label editing Feature Flag, Change to true to enable
 
+  const [editMode, setEditMode] = useState<"status" | "label">("status");
+  const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
+  const [editingLabel, setEditingLabel] = useState("");  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [showConfirmation, setShowConfirmation] = useState(false);
+  const [pendingAction, setPendingAction] = useState<(() => void) | null>(null); // ✅ Fixed Type
+
+  const openModal = () => {
+    setIsModalOpen(true);
+  };
+  
+  const closeModal = () => {
+    setIsModalOpen(false);
+  };
+  
   // Initialize the seat grid when rows or columns change
   useEffect(() => {
     setSeats((prevSeats) => {
       const newSeats: Seat[] = [];
-  
       for (let row = 0; row < rows; row++) {
         for (let col = 0; col < columns; col++) {
           const existingSeat = prevSeats.find(seat => seat.row === row && seat.column === col);
-  
           newSeats.push(
-            existingSeat
-              ? existingSeat // Keep existing seat data
-              : { id: `${row}-${col}`, row, column: col, label: '', status: 'VOID' } // Add new seats
+            existingSeat || { id: `${row}-${col}`, row, column: col, label: '', status: 'VOID' }
           );
         }
       }
-  
       return newSeats;
     });
   }, [rows, columns]);
-    
-
-  // Handle seat click based on edit mode
-  const handleSeatClick = (seat: Seat) => {
-    if (editMode === 'status') {
-      // Cycle through statuses: VOID -> AVAILABLE -> UNAVAILABLE -> VOID
-      const nextStatus: Record<'VOID' | 'AVAILABLE' | 'UNAVAILABLE', 'VOID' | 'AVAILABLE' | 'UNAVAILABLE'> = {
-        'VOID': 'AVAILABLE',
-        'AVAILABLE': 'UNAVAILABLE',
-        'UNAVAILABLE': 'VOID',
-      };
-      
-      const updatedSeats: Seat[] = seats.map(s => {
-        if (s.id === seat.id) {
-          return { ...s, status: nextStatus[s.status] }; // ✅ TypeScript now understands the type correctly
+  
+  useEffect(() => {
+    if (editingSeatId) {
+      console.log("🔍 DEBUG: Looking for Input ID:", `seat-input-${editingSeatId}`);
+  
+      let attempts = 0;
+      const interval = setInterval(() => {
+        const inputElement = document.getElementById(`seat-input-${editingSeatId}`) as HTMLInputElement;
+        
+        if (inputElement) {
+          console.log("✅ SUCCESS: Found Input, Trying to Focus:", editingSeatId);
+          inputElement.focus();
+          clearInterval(interval);
+        } else {
+          console.log(`⚠️ Retry #${attempts + 1}: Input Not Found Yet`);
         }
-        return s;
-      });
-      
-      setSeats(updatedSeats);
-    } else if (editMode === 'label') {
-      // Start editing label
+  
+        if (++attempts > 5) {
+          clearInterval(interval);
+          console.log("❌ ERROR: Input Still Not Found After Multiple Attempts");
+        }
+      }, 50); // ✅ Check every 50ms, up to 5 times
+    }
+  }, [editingSeatId]);
+  
+  // const [isDragging, setIsDragging] = useState(false);
+  // const [targetStatus, setTargetStatus] = useState<Seat["status"] | null>(null);
+  // const [changedSeats, setChangedSeats] = useState(new Set<string>()); // Track updated seats
+  
+  // const toggleSeatStatus = (currentStatus: Seat["status"], target: Seat["status"]) => {
+  //   return target; // Instead of cycling, we apply the target status directly
+  // };
+
+  const handleEditModeToggle = (mode: "status" | "label") => {
+    setEditMode(mode);
+    setEditingSeatId(null); // ✅ Reset any currently edited seat
+  };
+  
+  // const toggleSeatStatus = (seat: Seat): Seat => {
+  //   const nextStatus: Record<Seat["status"], Seat["status"]> = {
+  //     VOID: "AVAILABLE",
+  //     AVAILABLE: "UNAVAILABLE",
+  //     UNAVAILABLE: "VOID",
+  //   };
+  //   return { ...seat, status: nextStatus[seat.status] };
+  // };
+  const handleMouseDown = (seat: Seat, event: React.MouseEvent) => {
+    console.log("Mouse Down Event Triggered");
+    console.log("Current Edit Mode:", editMode);
+  
+    if (editMode === "status") {
+      event.preventDefault();
+      const newStatus = seat.status === "VOID" ? "AVAILABLE" : seat.status === "AVAILABLE" ? "UNAVAILABLE" : "VOID";
+  
+      setIsDragging(true);
+      setTargetStatus(newStatus);
+      setChangedSeats(new Set([seat.id]));
+      setSeats(seats.map(s => (s.id === seat.id ? { ...s, status: newStatus } : s)));
+  
+      console.log("Status Changed for Seat:", seat.id);
+    } else if (editMode === "label") {
+      event.stopPropagation(); // ✅ Prevents interference
+      console.log("Switching to Label Edit Mode for Seat:", seat.id);
+  
+      if (editingSeatId === seat.id) {
+        console.log("🟡 DEBUG: Already Editing This Seat, Ignoring Click:", seat.id);
+        return;
+      }
+  
       setEditingSeatId(seat.id);
-      setEditingLabel(seat.label);
+      setEditingLabel(seat.label || "");
     }
   };
-
-  // Save label after editing
+        
+  const handleMouseEnter = (seat: Seat) => {
+    if (isDragging && editMode === "status" && !changedSeats.has(seat.id)) {
+      setChangedSeats(prev => new Set(prev).add(seat.id)); // Track changed seats
+      setSeats(seats.map(s => (s.id === seat.id ? { ...s, status: targetStatus! } : s)));
+    }
+  };
+  
+  const handleMouseUp = () => {
+    setIsDragging(false);
+    setChangedSeats(new Set()); // Reset changed seats tracking
+  };
+  
   const handleLabelSave = (e: React.KeyboardEvent<HTMLInputElement> | React.FocusEvent<HTMLInputElement>) => {
-    if ((e as React.KeyboardEvent).key === 'Enter' || e.type === 'blur') {
-      const updatedSeats = seats.map(seat => {
-        if (seat.id === editingSeatId) {
-          return { ...seat, label: editingLabel.substring(0, 4) }; // Limit to 4 characters
-        }
-        return seat;
-      });
-      
-      setSeats(updatedSeats);
+    if ((e as React.KeyboardEvent).key === "Enter" || e.type === "blur") {
+      setSeats(seats.map(seat => 
+        seat.id === editingSeatId ? { ...seat, label: editingLabel.substring(0, 4) } : seat
+      ));
       setEditingSeatId(null);
-      setEditingLabel('');
+      setEditingLabel("");
     }
   };
-
+  
+  
   // Generate and download CSV
   const generateCSV = () => {
     const headers = 'Row,Column,Label,Status\n';
@@ -105,29 +169,88 @@ const SeatMappingTool = () => {
     URL.revokeObjectURL(url);
   };
 
-  // Get color based on status
-  const getColorForStatus = (status: 'VOID' | 'AVAILABLE' | 'UNAVAILABLE') => {
-    switch (status) {
-      case 'AVAILABLE': return 'bg-green-200';
-      case 'UNAVAILABLE': return 'bg-red-200';
-      case 'VOID': return 'bg-gray-200';
-      default: return 'bg-gray-200';
+    // Check if the user already has data
+  const confirmAction = (action: () => void) => {
+    if (seats.length > 0) {
+      setShowConfirmation(true);
+      setPendingAction(() => action); // Save action to run after confirmation
+    } else {
+      action();
     }
   };
 
-   // Function to handle file upload
-   const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+  const executePendingAction = () => {
+    if (pendingAction) {
+      pendingAction();
+      setShowConfirmation(false);
+      closeModal();
+    }
+  };
+
+  // Create a blank seat map
+  const createBlankSeatMap = () => {
+    const newRows = 5; // Default grid size
+    const newColumns = 5;
+  
+    setRows(newRows);
+    setColumns(newColumns);
+  
+    // Generate empty seat map
+    const newSeats: Seat[] = [];
+    for (let row = 0; row < newRows; row++) {
+      for (let col = 0; col < newColumns; col++) {
+        newSeats.push({
+          id: `${row}-${col}`,
+          row,
+          column: col,
+          label: "",
+          status: "VOID",
+        });
+      }
+    }
+  
+    setSeats(newSeats);
+    closeModal();
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>, restore: boolean = false) => { // ✅ Fixed function signature
     const file = event.target.files?.[0];
     if (!file) return;
-
+  
     Papa.parse(file, {
       complete: (result: Papa.ParseResult<string[]>) => {
-        const data: string[][] = result.data;
-        processCSVData(data);
+        const data = result.data as string[][];
+        if (data.length < 2) return;
+  
+        if (restore) {
+          // Restore Seat Map (Adjust Grid Size)
+          let maxRow = 0;
+          let maxCol = 0;
+          const newSeats = data.slice(1).map(row => {
+            const rowNum = Number(row[0]);
+            const colNum = Number(row[1]);
+            if (rowNum > maxRow) maxRow = rowNum;
+            if (colNum > maxCol) maxCol = colNum;
+            return { row: rowNum, column: colNum, label: row[2] || "", status: row[3] as "VOID" | "AVAILABLE" | "UNAVAILABLE", id: `${rowNum}-${colNum}` };
+          });
+          const newRows = maxRow + 1;
+          const newColumns = maxCol + 1;
+          setRows(newRows);
+          setColumns(newColumns);
+          setTempRows(newRows);
+          setTempColumns(newColumns);
+          setSeats(newSeats);
+        } else {
+          // Upload Grid Format
+          processCSVData(data);
+        }
+        closeModal();
       },
       skipEmptyLines: true,
     });
   };
+
+
 
   // Process CSV Data and update seats
   const processCSVData = (data: string[][]) => {
@@ -161,21 +284,78 @@ const SeatMappingTool = () => {
         });
       }
     }
-
+    const newRows = endRow + 1;
+    const newColumns = endCol + 1;
     setRows(endRow - startRow + 1);
     setColumns(endCol - startCol + 1);
+    setTempRows(newRows); // ✅ Sync input value with new row size
+    setTempColumns(newColumns); // ✅ Sync input value with new column size
     setSeats(seatList);
   };
  
   // Make sure you have this return statement:
   return (
-    <div className="flex flex-col items-center h-screen w-screen p-4 pr-4 overflow-hidden">
+    <div className="flex flex-col items-center h-screen w-screen p-4 pr-4 overflow-hidden" onMouseUp={handleMouseUp}>
       
       {/* Title */}
       <h1 className="text-2xl font-bold mb-4">Event Seat Mapping Tool</h1>
+      <p className="text-sm text-gray-600 mb-0 text-left">Create a new seat map or upload an existing one.</p>
 
       {/* Input controls */}
       <div className="mb-4 flex flex-wrap gap-4 items-end w-full justify-center">
+      <div>
+      {/* Button to Open Modal */}
+      <button onClick={openModal} className="bg-blue-600 text-white px-4 py-2 rounded shadow hover:bg-blue-700 ">
+      Create New Seat Map
+      </button>
+
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50"> 
+          <div className="bg-white p-6 rounded-lg shadow-lg text-center relative z-50">
+            <h2 className="text-xl font-bold mb-4">Create New Seat Map</h2>
+            <p className="text-sm text-gray-600 mb-4">This action will replace your current seat map.</p>
+
+
+            {/* Buttons Inside Modal */}
+            <button onClick={() => confirmAction(createBlankSeatMap)} className="block w-full bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded my-2">
+              Create Blank Seat Map
+            </button>
+            
+            <label className="block w-full bg-blue-500 hover:bg-blue-600 text-white px-4 py-2 rounded my-2 cursor-pointer">
+              Upload Seat Map (Grid Format)
+              <input type="file" accept=".csv" onChange={(e) => confirmAction(() => handleFileUpload(e, false))} className="hidden" />
+            </label>
+
+            <label className="block w-full bg-purple-500 hover:bg-purple-600 text-white px-4 py-2 rounded my-2 cursor-pointer">
+              Restore Seat Map (CSV Format)
+              <input type="file" accept=".csv" onChange={(e) => confirmAction(() => handleFileUpload(e, true))} className="hidden" />
+            </label>
+
+            {/* Close Button */}
+            <button onClick={closeModal} className="mt-4 text-gray-600 hover:text-gray-900">Cancel</button>
+          </div>
+        </div>
+      )}
+
+    {/* Confirmation Modal */}
+    {showConfirmation && (
+      <div className="fixed inset-0 flex items-center justify-center bg-black bg-opacity-50 z-50">
+        <div className="bg-white p-6 rounded-lg shadow-lg text-center">
+          <h2 className="text-xl font-bold mb-4">Are you sure?</h2>
+          <p className="text-sm text-gray-600 mb-4">This will remove all current changes.</p>
+
+          <button onClick={executePendingAction} className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded mr-2">
+            Yes, Continue
+          </button>
+          <button onClick={() => setShowConfirmation(false)} className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded">
+            Cancel
+          </button>
+        </div>
+      </div>
+    )}
+    </div>
+        
         <div>
           <label className="block mb-1">Rows:</label>
           <input 
@@ -210,32 +390,24 @@ const SeatMappingTool = () => {
         </button>
   
         {/* Edit mode toggle */}
+        
         <div className="flex border rounded overflow-hidden">
-          <button 
-            onClick={() => setEditMode('status')}
-            className={`px-4 py-2 ${editMode === 'status' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+            <button 
+            onClick={() => handleEditModeToggle("status")}
+            className={`px-4 py-2 ${editMode === "status" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
           >
             Status Editor
           </button>
+          {ENABLE_LABEL_EDITING && (
           <button 
-            onClick={() => setEditMode('label')}
-            className={`px-4 py-2 ${editMode === 'label' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
+            onClick={() => handleEditModeToggle("label")}
+            className={`px-4 py-2 ${editMode === "label" ? "bg-blue-500 text-white" : "bg-gray-100"}`}
           >
             Label Editor
           </button>
-          {/* <button 
-            onClick={() => setEditMode('category')}
-            className={`px-4 py-2 ${editMode === 'category' ? 'bg-blue-500 text-white' : 'bg-gray-100'}`}
-          >
-            Category Editor
-          </button> */}
-        </div>
-      
-        <label className="cursor-pointer bg-blue-600 text-white py-2 px-6 rounded-lg shadow hover:bg-blue-700 ">
-        Upload Seatmap CSV
-        <input type="file" accept=".csv" onChange={handleFileUpload} className="hidden" />
-        </label>
-
+          )}
+      </div>
+          
         <button 
           onClick={generateCSV}
           className="cursor-pointer bg-green-500 text-white py-2 px-6 rounded-lg ml-auto mr-8 shadow hover:bg-green-700">
@@ -253,63 +425,103 @@ const SeatMappingTool = () => {
   
       {/* Scrollable Grid Container */}
       <div 
-        className="flex-grow w-full max-w-screen-2xl overflow-auto border bg-white mb-0"
-        style={{ height: 'calc(100vh - 180px)' }} // Adjusts grid height dynamically
+        className={`flex-grow w-full max-w-screen-2xl overflow-auto border bg-white mb-0 ${
+          editMode === "status" ? "select-none" : "select-text"
+        }`} 
+        style={{ height: 'calc(100vh - 180px)' }} 
+        onMouseUp={handleMouseUp}
       >
+    <div className="bg-gray-100 place-self-auto text-center w-full max-w-screen-2xl pr-2 fixed z-10 border">
+      <p className="text-2xl font-bold">STAGE</p>
+    </div>
 
-      <div className="bg-gray-100 place-self-auto text-center w-full max-w-screen-2xl pr-2 fixed z-10 border">
-        <p className="text-2xl font-bold"> STAGE
-        </p>
+    <div className="relative mx-auto w-max mt-14 z-0">
+      {/* Column headers */}
+      <div className="flex ml-8">
+        {Array.from({ length: columns }).map((_, colIndex) => (
+          <div key={`col-${colIndex}`} className="w-[50px] h-[30px] flex items-center justify-center text-sm font-medium">
+            {colIndex}
+          </div>
+        ))}
       </div>
 
-        <div className="relative mx-auto w-max mt-14 z-0"> {/* Centers the grid */}
-          {/* Column headers */}
-          <div className="flex ml-8">
-            {Array.from({ length: columns }).map((_, colIndex) => (
-              <div key={`col-${colIndex}`} className="w-[50px] h-[30px] flex items-center justify-center text-sm font-medium">
-                {colIndex}
+      {/* Rows with row headers */}
+      {Array.from({ length: rows }).map((_, rowIndex) => (
+        <div key={`row-${rowIndex}`} className="flex">
+          {/* Row header */}
+          <div className="w-[30px] h-[50px] flex items-center justify-center text-sm font-medium">
+            {rowIndex}
+          </div>
+
+          <div 
+            className="grid" 
+            style={{ display: 'grid', gridTemplateColumns: `repeat(${columns}, 50px)`, gap: '0px' }}
+          >
+            {seats.filter(seat => seat.row === rowIndex).map(seat => (
+
+              // seats rendering
+              <div
+                key={seat.id}
+                onMouseDown={(event) => handleMouseDown(seat, event)}
+                onMouseEnter={() => handleMouseEnter(seat)}
+                className={`w-[50px] h-[50px] flex items-center justify-center cursor-${
+                  editMode === "label" ? "text" : "pointer"
+                } border ${
+                  seat.status === "AVAILABLE" ? "bg-green-200" 
+                  : seat.status === "UNAVAILABLE" ? "bg-red-200" 
+                  : "bg-gray-200"
+                } ${editMode === "status" ? "select-none" : "select-text"}`} // ✅ Prevent text selection in Status mode
+              >
+                {editMode === "label" && editingSeatId === seat.id ? (
+                  <>
+                    {console.log("🔥 DEBUG: React is Rendering Input for Seat:", seat.id)}
+                    
+                    <input
+                      id={`seat-input-${seat.id}`} 
+                      type="text"
+                      value={editingLabel}
+                      onChange={(e) => setEditingLabel(e.target.value)}
+                      onKeyDown={handleLabelSave}
+                      onBlur={handleLabelSave}
+                      maxLength={4}
+                      className="w-full h-full text-center bg-white border-2 border-black z-50 relative focus:outline-none"
+                      autoFocus
+                      style={{
+                        position: "absolute",
+                        left: 0,
+                        top: 0,
+                        width: "100%",
+                        height: "100%",
+                        zIndex: 1000, // ✅ Ensure it’s on top
+                      }}
+                    />
+                  </>
+                ) : (
+                  <>
+                    {/* {console.log("⚠️ DEBUG: React is Rendering Span (Not Input) for Seat:", seat.id)} */}
+                    <span 
+                      onClick={(e) => { 
+                        e.stopPropagation(); // ✅ Prevents conflicts with drag events
+                        console.log("🟢 DEBUG: Clicked Span, Setting `editingSeatId` to:", seat.id);
+                        setEditingSeatId(seat.id); 
+                        setEditingLabel(seat.label || "");
+                      }} 
+                    >
+                      {seat.label || " "}
+                    </span>
+                  </>
+                )}
               </div>
+
+
             ))}
           </div>
-  
-          {/* Rows with row headers */}
-          {Array.from({ length: rows }).map((_, rowIndex) => (
-            <div key={`row-${rowIndex}`} className="flex">
-              {/* Row header */}
-              <div className="w-[30px] h-[50px] flex items-center justify-center text-sm font-medium">
-                {rowIndex}
-              </div>
-  
-              {/* Seats */}
-              {seats
-                .filter(seat => seat.row === rowIndex)
-                .map((seat) => (
-                  <div
-                    key={seat.id}
-                    onClick={() => handleSeatClick(seat)}
-                    className={`w-[50px] h-[50px] flex items-center justify-center cursor-pointer border rounded text-xs ${getColorForStatus(seat.status)}`}
-                  >
-                    {editingSeatId === seat.id ? (
-                      <input
-                        type="text"
-                        value={editingLabel}
-                        onChange={(e) => setEditingLabel(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleLabelSave(e)}
-                        onBlur={handleLabelSave}
-                        maxLength={4}
-                        className="w-full h-full text-center bg-transparent focus:outline-none"
-                        autoFocus
-                      />
-                    ) : (
-                      seat.label
-                    )}
-                  </div>
-                ))
-              }
-            </div>
-          ))}
         </div>
-      </div>
+      ))}
+    </div>
+  </div>
+
+
       {/* Summary Section */}
       <div className="mt-0 mb-10 text-center text-lg font-semibold">
         <p>Total Grid : {seats.length}</p>
