@@ -1,5 +1,8 @@
+"use client";
+
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
+import { usePathname } from "next/navigation"; // ✅ Import Next.js hook
 
 // Define the Seat interface
 interface Seat {
@@ -11,6 +14,9 @@ interface Seat {
 }
 
 const SeatMappingTool = () => {
+  const pathname = usePathname(); // ✅ Get the current route
+  const isLabelMode = pathname === "/label"; // ✅ Check if user is in Label Mode
+
   const [rows, setRows] = useState(5);
   const [columns, setColumns] = useState(5);
   const [tempRows, setTempRows] = useState(5);  // Temporary input
@@ -20,7 +26,7 @@ const SeatMappingTool = () => {
   const [isDragging, setIsDragging] = useState(false);
   const [targetStatus, setTargetStatus] = useState<Seat["status"] | null>(null);
   const [changedSeats, setChangedSeats] = useState(new Set<string>()); // Track updated seats
-  const ENABLE_LABEL_EDITING = false; // Label editing Feature Flag, Change to true to enable
+  const ENABLE_LABEL_EDITING = true; // Label editing Feature Flag, Change to true to enable
 
   const [editMode, setEditMode] = useState<"status" | "label">("status");
   const [editingSeatId, setEditingSeatId] = useState<string | null>(null);
@@ -53,13 +59,15 @@ const SeatMappingTool = () => {
   }, [rows, columns]);
   
   useEffect(() => {
+    if (typeof window === "undefined") return; // ✅ Prevents server execution
+  
     if (editingSeatId) {
       console.log("🔍 DEBUG: Looking for Input ID:", `seat-input-${editingSeatId}`);
   
       let attempts = 0;
       const interval = setInterval(() => {
         const inputElement = document.getElementById(`seat-input-${editingSeatId}`) as HTMLInputElement;
-        
+  
         if (inputElement) {
           console.log("✅ SUCCESS: Found Input, Trying to Focus:", editingSeatId);
           inputElement.focus();
@@ -76,6 +84,24 @@ const SeatMappingTool = () => {
     }
   }, [editingSeatId]);
   
+  useEffect(() => {
+    if (!isLabelMode) return; // ✅ Prevents running in Status Mode
+
+    console.log("🚀 Running Label Mode functions...");
+
+    // Example: Auto-focus logic only for Label Mode
+    if (editingSeatId) {
+      setTimeout(() => {
+        const inputElement = document.getElementById(`seat-input-${editingSeatId}`) as HTMLInputElement;
+        if (inputElement) {
+          console.log("✅ Focused on Label Input:", editingSeatId);
+          inputElement.focus();
+        }
+      }, 100);
+    }
+  }, [editingSeatId, isLabelMode]); // ✅ Only triggers in Label Mode
+
+
   // const [isDragging, setIsDragging] = useState(false);
   // const [targetStatus, setTargetStatus] = useState<Seat["status"] | null>(null);
   // const [changedSeats, setChangedSeats] = useState(new Set<string>()); // Track updated seats
@@ -147,9 +173,21 @@ const SeatMappingTool = () => {
     }
   };
   
+  const saveGridToLocalStorage = () => {
+    localStorage.setItem("seatGrid", JSON.stringify(seats));
+  };
+  
+  useEffect(() => {
+    const savedGrid = localStorage.getItem("seatGrid");
+    if (savedGrid) {
+      setSeats(JSON.parse(savedGrid));
+    }
+  }, []);
   
   // Generate and download CSV
   const generateCSV = () => {
+    if (typeof window === "undefined") return; // ✅ Prevents execution on the server
+  
     const headers = 'Row,Column,Label,Status\n';
     const csvContent = seats.map(seat => 
       `${seat.row},${seat.column},${seat.label},${seat.status}`
@@ -158,16 +196,19 @@ const SeatMappingTool = () => {
     const blob = new Blob([headers + csvContent], { type: 'text/csv' });
     const url = URL.createObjectURL(blob);
     
-    // Create a download link and trigger it
-    const a = document.createElement('a');
-    a.setAttribute('href', url);
-    a.setAttribute('download', 'seat_map.csv');
-    a.style.display = 'none';
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
+    // ✅ Ensure this only runs in the browser
+    if (typeof document !== "undefined") {
+      const a = document.createElement('a');
+      a.setAttribute('href', url);
+      a.setAttribute('download', 'seat_map.csv');
+      a.style.display = 'none';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }
   };
+  
 
     // Check if the user already has data
   const confirmAction = (action: () => void) => {
@@ -300,6 +341,11 @@ const SeatMappingTool = () => {
       {/* Title */}
       <h1 className="text-2xl font-bold mb-4">Event Seat Mapping Tool</h1>
       <p className="text-sm text-gray-600 mb-0 text-left">Create a new seat map or upload an existing one.</p>
+
+      <h1>{isLabelMode ? "Label Mode" : "Status Mode"}</h1>
+      <p>
+        {isLabelMode ? "✏️ Click on a seat to edit labels." : "✅ Click on a seat to change its status."}
+        </p>
 
       {/* Input controls */}
       <div className="mb-4 flex flex-wrap gap-4 items-end w-full justify-center">
@@ -461,58 +507,58 @@ const SeatMappingTool = () => {
 
               // seats rendering
               <div
-                key={seat.id}
-                onMouseDown={(event) => handleMouseDown(seat, event)}
-                onMouseEnter={() => handleMouseEnter(seat)}
-                className={`w-[50px] h-[50px] flex items-center justify-center cursor-${
-                  editMode === "label" ? "text" : "pointer"
-                } border ${
-                  seat.status === "AVAILABLE" ? "bg-green-200" 
-                  : seat.status === "UNAVAILABLE" ? "bg-red-200" 
-                  : "bg-gray-200"
-                } ${editMode === "status" ? "select-none" : "select-text"}`} // ✅ Prevent text selection in Status mode
-              >
-                {editMode === "label" && editingSeatId === seat.id ? (
-                  <>
-                    {console.log("🔥 DEBUG: React is Rendering Input for Seat:", seat.id)}
-                    
-                    <input
-                      id={`seat-input-${seat.id}`} 
-                      type="text"
-                      value={editingLabel}
-                      onChange={(e) => setEditingLabel(e.target.value)}
-                      onKeyDown={handleLabelSave}
-                      onBlur={handleLabelSave}
-                      maxLength={4}
-                      className="w-full h-full text-center bg-white border-2 border-black z-50 relative focus:outline-none"
-                      autoFocus
-                      style={{
-                        position: "absolute",
-                        left: 0,
-                        top: 0,
-                        width: "100%",
-                        height: "100%",
-                        zIndex: 1000, // ✅ Ensure it’s on top
-                      }}
-                    />
-                  </>
-                ) : (
-                  <>
-                    {/* {console.log("⚠️ DEBUG: React is Rendering Span (Not Input) for Seat:", seat.id)} */}
-                    <span 
-                      onClick={(e) => { 
-                        e.stopPropagation(); // ✅ Prevents conflicts with drag events
-                        console.log("🟢 DEBUG: Clicked Span, Setting `editingSeatId` to:", seat.id);
-                        setEditingSeatId(seat.id); 
-                        setEditingLabel(seat.label || "");
-                      }} 
-                    >
-                      {seat.label || " "}
-                    </span>
-                  </>
-                )}
-              </div>
-
+              key={seat.id}
+              onMouseDown={(event) => !isLabelMode && handleMouseDown(seat, event)} // ✅ Status change only in `/status`
+              onMouseEnter={() => !isLabelMode && handleMouseEnter(seat)} // ✅ Hover only in `/status`
+              className={`w-[50px] h-[50px] flex items-center justify-center cursor-${isLabelMode ? "text" : "pointer"} border ${
+                seat.status === "AVAILABLE" ? "bg-green-200" 
+                : seat.status === "UNAVAILABLE" ? "bg-red-200" 
+                : "bg-gray-200"
+              } ${isLabelMode ? "select-text" : "select-none"}`} // ✅ Prevent text selection in Status mode
+            >
+              {isLabelMode && editingSeatId === seat.id ? (
+                <>
+                  {console.log("🔥 DEBUG: React is Rendering Input for Seat:", seat.id)}
+                  <input
+                    id={`seat-input-${seat.id}`} 
+                    type="text"
+                    value={editingLabel}
+                    onChange={(e) => setEditingLabel(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === "Enter") {
+                        console.log("🔵 Saving Label:", editingLabel);
+                        setEditingSeatId(null); // Save label and exit edit mode
+                      }
+                    }}
+                    onBlur={() => setEditingSeatId(null)} // Exit edit mode when clicking outside
+                    maxLength={4}
+                    className="w-full h-full text-center bg-white border-2 border-black z-50 relative focus:outline-none"
+                    autoFocus
+                    style={{
+                      position: "absolute",
+                      left: 0,
+                      top: 0,
+                      width: "100%",
+                      height: "100%",
+                      zIndex: 1000, // ✅ Ensure it’s on top
+                    }}
+                  />
+                </>
+              ) : (
+                <span 
+                  onClick={(e) => { 
+                    if (!isLabelMode) return; // ✅ Prevent editing outside `/label`
+                    e.stopPropagation(); // ✅ Prevents conflicts with drag events
+                    console.log("🟢 DEBUG: Clicked Span, Setting `editingSeatId` to:", seat.id);
+                    setEditingSeatId(seat.id); 
+                    setEditingLabel(seat.label || "");
+                  }} 
+                >
+                  {seat.label || " "}
+                </span>
+              )}
+            </div>
+  
 
             ))}
           </div>

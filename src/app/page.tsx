@@ -1,10 +1,20 @@
-'use client'
-import SeatMappingTool from '../components/SeatMappingTool'
+"use client"; // ✅ Required for Client Components
 
-export default function Home() {
+import React from "react";
+import { BrowserRouter as Router, Routes, Route, Navigate } from "react-router-dom";
+import StatusModePage from "./StatusModePage";
+import LabelModePage from "./LabelModePage";
+
+const App = () => {
   return (
-    <main className="min-h-screen p-4">
-      <SeatMappingTool />
-    </main>
-  )
-}
+    <Router>
+      <Routes>
+        <Route path="/" element={<Navigate to="/status" />} />
+        <Route path="/status" element={<StatusModePage />} />
+        <Route path="/label" element={<LabelModePage />} />
+      </Routes>
+    </Router>
+  );
+};
+
+export default App;
