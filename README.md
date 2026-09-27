@@ -1,38 +1,41 @@
-# seat-mapper
-=======
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# Interactive Seat Mapping & Grid Editor
 
-## Getting Started
+> **Project Status**: 🟢 `Standalone Interactive Tool`  
+> **Tech Stack**: Next.js, React, TypeScript, Tailwind CSS, PapaParse  
+> **Architecture**: Client-side interactive 2D grid matrix editor with multi-mode state manipulation & CSV import/export
 
-First, run the development server:
+A fast, browser-based seat layout editor designed to construct, visualize, and label custom venue seating configurations.
+
+---
+
+## 🌟 Key Features
+
+- **Dynamic Grid Dimensions**: Dynamically adjust venue grid rows and columns with live preview and re-indexing.
+- **Drag-to-Paint Seat States**: Multi-select and bulk-paint seat statuses (`AVAILABLE`, `UNAVAILABLE`, `VOID`) using intuitive click-and-drag interactions.
+- **Configurable Label Editing**: Dedicated modal editor for custom seat labeling and row numbering schemes with feature-flag toggling.
+- **Live Inventory Breakdown**: Real-time KPI counter displaying total seats, available slots, and blocked capacities.
+- **PapaParse CSV Pipeline**: Instant import and export capabilities compatible with ticketing platforms and venue spreadsheets.
+
+---
+
+## 🚀 Getting Started
 
 ```bash
+# Clone repository
+git clone https://github.com/faisaladi/seat-mapper.git
+cd seat-mapper
+
+# Install dependencies
+npm install
+
+# Start local development
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to view the tool.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+---
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+## 📜 License
 
-## Learn More
-
-To learn more about Next.js, take a look at the following resources:
-
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+MIT License - see [LICENSE](LICENSE) for details.
